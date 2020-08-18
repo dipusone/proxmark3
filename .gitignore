@@ -23,6 +23,7 @@ armsrc/fpga_version_info.c
 client/ui/ui_overlays.h
 *.Td
 .DS_Store
+.idea
 
 *.exe
 hardnested_stats.txt

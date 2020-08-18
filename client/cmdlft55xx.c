@@ -174,7 +174,7 @@ int usage_t55xx_wakup(){
 int usage_t55xx_bruteforce(){
 	PrintAndLog("This command uses A) bruteforce to scan a number range");
 	PrintAndLog("                  B) a dictionary attack");
-	PrintAndLog("Usage: lf t55xx bruteforce <start password> <end password> [i <*.dic>]");
+	PrintAndLog("Usage: lf t55xx bruteforce <start password> <end password> [i <*.dic>] [e <count>]");
 	PrintAndLog("       password must be 4 bytes (8 hex symbols)");
 	PrintAndLog("Options:");
 	PrintAndLog("     h           - this help");
@@ -183,10 +183,11 @@ int usage_t55xx_bruteforce(){
 	PrintAndLog("                                  '3' 1 of 4 coding reference, '4' special - try all downlink modes");
 	PrintAndLog("     <start_pwd> - 4 byte hex value to start pwd search at");
 	PrintAndLog("     <end_pwd>   - 4 byte hex value to end pwd search at");
-	PrintAndLog("     i <*.dic>   - loads a default keys dictionary file <*.dic>");
-	PrintAndLog("");
+    PrintAndLog("     i <*.dic>   - loads a default keys dictionary file <*.dic>");
+    PrintAndLog("     e <count>   - during the bruteforce print the password every <count>");
+    PrintAndLog("");
 	PrintAndLog("Examples:");
-	PrintAndLog("       lf t55xx bruteforce [r 2] aaaaaaaa bbbbbbbb");
+	PrintAndLog("       lf t55xx bruteforce [r 2] aaaaaaaa bbbbbbbb [e 100]");
 	PrintAndLog("       lf t55xx bruteforce [r 2] i default_pwd.dic");
 	PrintAndLog("");
 	return 0;
@@ -1466,7 +1467,8 @@ int CmdT55xxBruteForce(const char *Cmd) {
 	uint8_t dl_mode = 0;
 	uint8_t cmd_offset = 0;
 	int cmd_opt = 0;
-		
+	int every = 0;
+
 	char cmdp = param_getchar(Cmd, 0);
 	
 	if (cmdp == 'h' || cmdp == 'H') return usage_t55xx_bruteforce();
@@ -1585,24 +1587,41 @@ int CmdT55xxBruteForce(const char *Cmd) {
 	// incremental pwd range search
 	start_password = param_get32ex(Cmd, cmd_opt , 0, 16);
 	end_password = param_get32ex(Cmd, cmd_opt+1 , 0, 16);
+	cmd_opt += 1;
+
+
+    cmdp = param_getchar(Cmd, 2);
+    if (cmdp == 'e' || cmdp == 'E') {
+        every = param_get32ex(Cmd, 3, 0, 10);
+    }
+
 
 	if ( start_password >= end_password ) {
 		free(keyBlock);
 		return usage_t55xx_bruteforce();
 	}
 	PrintAndLog("Search password range [%08X -> %08X]", start_password, end_password);
+	if(every){
+        PrintAndLog("Printing password every %d", every);
+    }
 
 	uint32_t i = start_password;
+    uint32_t count = 1;
 
 	while ((!found) && (i <= end_password)) {
 
 		printf(".");
+		if( every && count % every == 0){
+			printf("\n");
+            printf("Trying password[%d]: [%08x]\n", count, i);
+		}
 		fflush(stdout);
 		if (ukbhit()) {
 			ch = getchar();
 			(void)ch;
 			printf("\naborted via keyboard!\n");
 			free(keyBlock);
+            PrintAndLog("Last password tried[%d]: [%08x]\n", count, i);
 			return 0;
 		}
 		// Try each downlink_mode if asked to 
@@ -1621,8 +1640,8 @@ int CmdT55xxBruteForce(const char *Cmd) {
 		}
 		if (found) break;
 		i++;
+		count ++;
 	}
-
 	if (found){
 		PrintAndLog("Found valid password: [%08x]", i);
 		T55xx_Print_DownlinkMode (downlink_mode);

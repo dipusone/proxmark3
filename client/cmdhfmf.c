@@ -284,40 +284,69 @@ int CmdHF14AMfDump(const char *Cmd)
 	uint8_t keys[2][40][6];
 	uint8_t rights[40][4];
 	uint8_t carddata[256][16];
-	uint8_t numSectors = 16;
+	uint8_t numSectors = -1;
+	uint8_t paramNum = 0;
+    char filename[FILE_PATH_SIZE]={0};
 
 	FILE *fin;
 	FILE *fout;
 
 	UsbCommand resp;
 
-	char cmdp = param_getchar(Cmd, 0);
+    char cmdp = param_getchar(Cmd, paramNum);
+
+    if(cmdp == 'd' || cmdp == 'D'){
+        if (param_getstr(Cmd, paramNum + 1, filename, sizeof(filename)) >= FILE_PATH_SIZE){
+            PrintAndLog("File name too long");
+            return 1;
+        }
+        paramNum += 2;
+    }
+
+    if (strlen(filename) == 0){
+        strcpy(filename, "dumpdata.bin");
+    }
+
+
+
+	cmdp = param_getchar(Cmd, paramNum);
+	paramNum += 1;
 	numSectors = ParamCardSizeSectors(cmdp);
 
-	if (strlen(Cmd) > 3 || cmdp == 'h' || cmdp == 'H') {
-		PrintAndLog("Usage:   hf mf dump [card memory] [k|m]");
+	if (cmdp == 'h' || cmdp == 'H') {
+		PrintAndLog("Usage:   hf mf dump [d dumpdata.bin] [card memory] [k|m]");
 		PrintAndLog("  [card memory]: 0 = 320 bytes (Mifare Mini), 1 = 1K (default), 2 = 2K, 4 = 4K");
 		PrintAndLog("  k: Always try using both Key A and Key B for each sector, even if access bits would prohibit it");
 		PrintAndLog("  m: When missing access bits or keys, replace that block with NULL");
 		PrintAndLog("");
 		PrintAndLog("Samples: hf mf dump");
-		PrintAndLog("         hf mf dump 4");
-		PrintAndLog("         hf mf dump 4 m");
+        PrintAndLog("         hf mf dump d dumpdata.bin");
+		PrintAndLog("         hf mf dump d dumpdata.bin 4");
+		PrintAndLog("         hf mf dump d dumpdata.bin 4 m");
+        PrintAndLog("         hf mf dump d dumpdata.bin 4 m");
 		return 0;
 	}
 
-	char opts = param_getchar(Cmd, 1);
+	char opts = param_getchar(Cmd, paramNum);
 	bool useBothKeysAlways = false;
-	if (opts == 'k' || opts == 'K') useBothKeysAlways = true;
+	if (opts == 'k' || opts == 'K'){
+	    useBothKeysAlways = true;
+	    paramNum += 1;
+	}
 	bool nullMissingKeys = false;
-	if (opts == 'm' || opts == 'M') nullMissingKeys = true;
+	if (opts == 'm' || opts == 'M'){
+	    nullMissingKeys = true;
+        paramNum += 1;
+	}
+
+
 
 	if ((fin = fopen("dumpkeys.bin","rb")) == NULL) {
 		PrintAndLog("Could not find file dumpkeys.bin");
 		return 1;
 	}
 
-	// Read keys from file
+    // Read keys from file
 	for (int group=0; group<=1; group++) {
 		for (sectorNo=0; sectorNo<numSectors; sectorNo++) {
 			size_t bytes_read = fread(keys[group][sectorNo], 1, 6, fin);
@@ -444,14 +473,15 @@ int CmdHF14AMfDump(const char *Cmd)
 	}
 
 	if (isOK) {
-		if ((fout = fopen("dumpdata.bin","wb")) == NULL) {
+
+        if ((fout = fopen(filename,"wb")) == NULL) {
 			PrintAndLog("Could not create file name dumpdata.bin");
 			return 1;
 		}
 		uint16_t numblocks = FirstBlockOfSector(numSectors - 1) + NumBlocksPerSector(numSectors - 1);
 		fwrite(carddata, 1, 16*numblocks, fout);
 		fclose(fout);
-		PrintAndLog("Dumped %d blocks (%d bytes) to file dumpdata.bin", numblocks, 16*numblocks);
+		PrintAndLog("Dumped %d blocks (%d bytes) to file %s", numblocks, 16*numblocks, filename);
 	}
 
 	return 0;
